@@ -1,0 +1,40 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find project
+        id: proj
+        run: |
+          f=$(find . -path ./.git -prune -o -name settings.gradle.kts -print | head -n 1)
+          if [ -z "$f" ]; then
+            echo "settings.gradle.kts 를 찾지 못했어요. 저장소에 있는 파일:"
+            find . -path ./.git -prune -o -type f -print | sort
+            exit 1
+          fi
+          echo "프로젝트 위치: $(dirname "$f")"
+          echo "dir=$(dirname "$f")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build debug APK
+        run: gradle -p "${{ steps.proj.outputs.dir }}" assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: imm-meter-apk
+          path: "**/build/outputs/apk/debug/*.apk"
