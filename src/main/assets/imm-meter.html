@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IMM 진도계</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #eef1f4; --panel: #ffffff; --ink: #18232d; --muted: #5a6977; --line: #d3dae1;
+  --accent: #1f4fb8; --accent-ink: #ffffff; --warn: #9a5a00;
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f151a; --panel: #172028; --ink: #e5ecf1; --muted: #93a3b0; --line: #2a3742;
+    --accent: #6f9cff; --accent-ink: #0f151a; --warn: #f0b45a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f151a; --panel: #172028; --ink: #e5ecf1; --muted: #93a3b0; --line: #2a3742;
+  --accent: #6f9cff; --accent-ink: #0f151a; --warn: #f0b45a; color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  font-size: 15px; line-height: 1.55;
+}
+main { max-width: 560px; margin: 0 auto; padding: 16px 16px 40px; }
+.hero {
+  border-radius: 18px; padding: 18px 20px 16px; color: #14202a;
+  background: #ffffff; border: 1px solid var(--line);
+  display: grid; grid-template-columns: auto 1fr; column-gap: 18px; align-items: end;
+  transition: background-color .4s ease;
+}
+.hero.light-text { color: #ffffff; }
+.numeral {
+  font-family: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  font-weight: 600; font-size: 116px; line-height: .86; letter-spacing: -1px; min-width: 1.2ch;
+}
+.hero-side { padding-bottom: 6px; }
+.hero-side .cap { font-size: 13px; opacity: .8; }
+.hero-side .big { font-size: 22px; font-weight: 600; line-height: 1.25; }
+.hero-side .small { font-size: 13px; opacity: .85; margin-top: 4px; }
+.refs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.card .cap { font-size: 12px; color: var(--muted); }
+.card .val { font-size: 18px; font-weight: 600; }
+.card .sub { font-size: 12px; color: var(--muted); }
+.sel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.sel .card { padding: 8px 10px; }
+.sel .chip { display: inline-block; min-width: 2.4em; text-align: center; border-radius: 7px; padding: 0 6px; color: #14202a;
+  font-family: "Barlow Condensed", "Arial Narrow", sans-serif; font-weight: 600; font-size: 22px; line-height: 1.3; }
+.sel .chip.light-text { color: #ffffff; }
+.tin { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+input[type="number"] {
+  font: inherit; width: 100%; min-width: 0; padding: 5px 7px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+}
+input[type="number"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+section { margin-top: 18px; }
+h2 { font-size: 15px; font-weight: 600; margin: 0 0 6px; }
+.note { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+.warn { color: var(--warn); }
+canvas { display: block; width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+#spec { height: 250px; }
+#wave { height: 120px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+button {
+  font: inherit; font-weight: 500; border-radius: 10px; padding: 10px 14px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+}
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.small { padding: 7px 11px; font-size: 13px; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: .55; cursor: default; }
+label.toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-top: 10px; }
+.bld { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.bld-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 10px; margin-top: 10px; }
+.bld-grid label { font-size: 12px; color: var(--muted); display: block; }
+.bld-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.status { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13px; margin-top: 14px; }
+.status dt { color: var(--muted); }
+.status dd { margin: 0; }
+ol.log { list-style: none; padding: 0; margin: 0; }
+ol.log li { display: grid; grid-template-columns: 3.2em 1fr; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+ol.log .chip { font-family: "Barlow Condensed", "Arial Narrow", sans-serif; font-weight: 600; font-size: 22px; text-align: center; border-radius: 8px; color: #14202a; padding: 2px 0; }
+ol.log .empty { display: block; color: var(--muted); border: 0; }
+details { margin-top: 18px; font-size: 14px; }
+summary { cursor: pointer; font-weight: 500; }
+@media (prefers-reduced-motion: reduce) { .hero { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="hero" id="hero" aria-live="polite">
+    <div class="numeral" id="numeral">–</div>
+    <div class="hero-side">
+      <div class="cap" id="heroCap">IMM 진도, 최근 40초</div>
+      <div class="big" id="heroMain">시작을 눌러 측정하세요</div>
+      <div class="small" id="heroSub">폰을 바닥에 테이프로 고정하면 정확해져요</div>
+    </div>
+  </div>
+
+  <div class="refs">
+    <div class="card"><div class="cap">PGA 기준 MMI (KMA)</div><div class="val" id="pgaVal">–</div><div class="sub" id="pgaSub">&nbsp;</div></div>
+    <div class="card"><div class="cap">JMA 계측진도</div><div class="val" id="jmaVal">–</div><div class="sub" id="jmaSub">&nbsp;</div></div>
+  </div>
+
+  <section>
+    <h2>선택 주기 진도</h2>
+    <div class="sel">
+      <div class="card"><div class="tin">IMM_<input type="number" id="selT0" min="0.1" max="10" step="0.05" inputmode="decimal" aria-label="선택 주기 1 (초)">초</div><div><span class="chip" id="selC0">–</span></div><div class="sub" id="selS0">&nbsp;</div></div>
+      <div class="card"><div class="tin">IMM_<input type="number" id="selT1" min="0.1" max="10" step="0.05" inputmode="decimal" aria-label="선택 주기 2 (초)">초</div><div><span class="chip" id="selC1">–</span></div><div class="sub" id="selS1">&nbsp;</div></div>
+      <div class="card"><div class="tin">IMM_<input type="number" id="selT2" min="0.1" max="10" step="0.05" inputmode="decimal" aria-label="선택 주기 3 (초)">초</div><div><span class="chip" id="selC2">–</span></div><div class="sub" id="selS2">&nbsp;</div></div>
+    </div>
+  </section>
+
+  <div class="controls">
+    <button class="primary" id="startBtn">시작</button>
+    <button id="calBtn" disabled>잡음 측정 (30초)</button>
+    <button id="resetBtn">기록 최대 초기화</button>
+  </div>
+  <label class="toggle"><input type="checkbox" id="hcToggle"> 10 Hz 이상 성분 깎기 (JMA 고역차단)</label>
+
+  <section>
+    <h2>건물 보정 (지반 흔들림 역산)</h2>
+    <div class="bld">
+      <label class="toggle" style="margin-top:0"><input type="checkbox" id="bldOn"> 건물 증폭을 빼고 지반 흔들림으로 판정</label>
+      <div class="bld-grid">
+        <div><label for="bldTop">최고 층수</label><input type="number" id="bldTop" min="2" max="200" step="1" inputmode="numeric"></div>
+        <div><label for="bldCur">지금 있는 층</label><input type="number" id="bldCur" min="1" max="200" step="1" inputmode="numeric"></div>
+        <div><label for="bldT1">건물 고유주기 T₁ (초)</label><input type="number" id="bldT1" min="0.1" max="10" step="0.05" inputmode="decimal"></div>
+        <div><label for="bldZeta">감쇠비 (%)</label><input type="number" id="bldZeta" min="1" max="20" step="0.5" inputmode="decimal"></div>
+      </div>
+      <div class="bld-row">
+        <button class="small" id="t1Measure" disabled>고유주기 측정</button>
+        <button class="small" id="t1Est">층수로 다시 추정</button>
+      </div>
+      <p class="note" id="bldInfo">&nbsp;</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>주기별 진도</h2>
+    <canvas id="spec" role="img" aria-label="목표 주기별 IMM 진도 그래프"></canvas>
+    <p class="note" id="specNote">실선은 최근 40초, 점선은 기록 최대, 회색 영역은 잡음 바닥이에요.</p>
+  </section>
+
+  <section>
+    <h2>흔들림 (3성분 합성, gal)</h2>
+    <canvas id="wave" role="img" aria-label="최근 40초 가속도 크기 파형"></canvas>
+  </section>
+
+  <dl class="status">
+    <dt>센서 입력</dt><dd id="stRate">–</dd>
+    <dt>센서</dt><dd id="stSensor">브라우저 동작 센서</dd>
+    <dt>잡음 바닥</dt><dd id="stNoise">아직 측정하지 않았어요</dd>
+    <dt>기록 최대</dt><dd id="stMax">–</dd>
+  </dl>
+
+  <section>
+    <h2>감지 기록 (III 이상)</h2>
+    <ol class="log" id="log"><li class="empty">아직 기록이 없어요</li></ol>
+  </section>
+
+  <details>
+    <summary>측정 방법과 계산 방식</summary>
+    <p>폰을 화면이 위로 오게 바닥에 놓고 테이프로 고정하세요. 책상 위는 책상 자체가 흔들려서 값이 커져요. 처음 쓸 때와 장소를 옮겼을 때는 조용한 상태에서 잡음 측정을 한 번 해주세요.</p>
+    <p>원시 가속도를 25 Hz 저역통과 후 50 Hz로 재샘플링하고, 최근 40초 파형에 신호 가중치 W(f) = 1/n(1/f)를 곱한 뒤 주기 0.1~10초의 IMM_T 필터(JMA 필터를 이동하고 최대 이득을 1로 정규화)를 1/6옥타브 간격으로 걸어요. 각 주기의 최대값을 KMA MMI 하한과 비교하고, 가장 높은 등급을 대표 진도로 표시해요. 잡음 바닥의 1.5배를 넘지 못한 주기는 판정에서 빠져요.</p>
+    <p>건물 보정은 건물을 균일한 전단 기둥으로 보고 1~5차 모드(주기 T₁, T₁/3, T₁/5…)의 증폭률을 계산해 수평 성분에서 나눠요. 역보정 배율은 최대 3배로 제한하고, 현재 시점에서 잘린 파형이 번지지 않도록 최근 3초는 서서히 줄여서 반영해요(그래서 강한 흔들림의 최대값은 2~3초 늦게 나타나요). 고유주기가 10%만 틀려도 그 근처 값이 크게 달라지니, 조용할 때 고유주기 측정을 해 두는 걸 권장해요. 층수 기준식은 국내 벽식 아파트용 0.0488·H^0.75(층고 2.8 m 가정)예요.</p>
+  </details>
+</main>
+
+<script>
+/* ---------- 계산 상수 ---------- */
+const FS = 50, W = 2048, N = 4096;          // 50 Hz, 40.96초 창, FFT 4096점
+const T0 = 1.616, K = 4, TMIN = 0.1, TMAX = 10, PER_OCT = 6;
+const NOISE_MARGIN = 1.5, CAL_SEC = 30, LOG_FROM = 2; // LOG_FROM: III
+const CLASSES = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X+"];
+const PCTG = [0, 0.07, 0.23, 0.76, 2.56, 6.86, 14.73, 31.66, 68.01, 146.14];
+const LOW = PCTG.map(p => p / 100 * 980.665);
+const MMI_COLORS = ["#ffffff", "#bfccff", "#a0e6ff", "#80ffff", "#7aff93", "#ffff00", "#ffc800", "#ff9100", "#ff0000", "#c80000"];
+const NT = Math.round(Math.log2(TMAX / TMIN) * PER_OCT) + 1;
+const TS = Array.from({ length: NT }, (_, i) => TMIN * Math.pow(2, i / PER_OCT));
+
+function hcut(f) {
+  const x2 = (f / 10) * (f / 10);
+  return Math.pow(1 + x2 * (0.694 + x2 * (0.241 + x2 * (0.0557 + x2 * (0.009664 + x2 * (0.00134 + x2 * 0.000155))))), -0.5);
+}
+function jmaGainF(f) {
+  if (f <= 0) return 0;
+  return Math.sqrt(1 / f) * hcut(f) * Math.sqrt(1 - Math.exp(-Math.pow(f / 0.5, 3)));
+}
+const FMAX = jmaGainF(1 / T0);
+function nfac(T) { const w = 1 / (1 + Math.pow(T0 / T, K)); return Math.pow(T0 / T, w); }
+function sigWeight(f, hc) {
+  const T = Math.min(1 / Math.max(f, 1e-12), TMAX);
+  const w = 1 / nfac(T);
+  return hc ? w * hcut(f) : w;
+}
+function binFreq(k) { return (k <= N / 2 ? k : N - k) * FS / N; }
+
+let HC = false, selT = [0.3, 1.5, 5];
+let immGains = [], selGains = [], jmaGain, pgaGain;
+function immGain(T, hc) {
+  const g = new Float64Array(N);
+  for (let k = 0; k < N; k++) {
+    const f = binFreq(k);
+    g[k] = f > 0 ? jmaGainF(f * T / T0) / FMAX * sigWeight(f, hc) : 0;
+  }
+  return g;
+}
+function buildGains() {
+  immGains = TS.map(T => immGain(T, HC));
+  selGains = selT.map(T => immGain(T, HC));
+  jmaGain = new Float64Array(N);
+  pgaGain = new Float64Array(N);
+  for (let k = 0; k < N; k++) {
+    const f = binFreq(k);
+    jmaGain[k] = jmaGainF(f);
+    pgaGain[k] = f < 0.05 ? 0 : f < 0.1 ? 0.5 - 0.5 * Math.cos(Math.PI * (f - 0.05) / 0.05) : 1;
+  }
+}
+
+/* ---------- 건물 증폭 모델 (균일 전단 기둥, 1~5차 모드) ---------- */
+let bld = { on: false, top: 25, cur: 20, T1: null, zeta: 5 };
+let HinvR = null, HinvI = null;
+function estT1(top) { return 0.0488 * Math.pow(2.8 * top, 0.75); }
+function bldT1() { return bld.T1 || estT1(bld.top); }
+function bldKey() { return bld.on ? [bld.top, bld.cur, bldT1().toFixed(3), bld.zeta].join("/") : "off"; }
+function bldH(fa) {   // 지반 대비 현재 층 수평 절대가속도 전달함수 (복소수)
+  const T1 = bldT1(), z = bld.zeta / 100;
+  const zr = Math.max(0, Math.min(1, (bld.cur - 1) / bld.top));
+  let hr = 1, hi = 0;
+  if (fa > 0) for (let n = 1; n <= 5; n++) {
+    const m = 2 * n - 1, r = fa * T1 / m;
+    const G = 4 * (n % 2 ? 1 : -1) / (m * Math.PI), ph = Math.sin(m * Math.PI * zr / 2);
+    const a = 1 - r * r, b = 2 * z * r, d2 = a * a + b * b, c = G * ph * r * r / d2;
+    hr += c * a; hi -= c * b;
+  }
+  return [hr, hi];
+}
+function buildHinv() {
+  if (!bld.on) { HinvR = HinvI = null; return; }
+  HinvR = new Float64Array(N); HinvI = new Float64Array(N);
+  for (let k = 0; k < N; k++) {
+    const sf = (k <= N / 2 ? k : k - N) * FS / N;
+    let [hr, hi] = bldH(Math.abs(sf));
+    if (sf < 0) hi = -hi;
+    const d = hr * hr + hi * hi;
+    let ir = hr / d, ii = -hi / d;
+    const mg = Math.sqrt(ir * ir + ii * ii);
+    if (mg > 3) { ir *= 3 / mg; ii *= 3 / mg; }
+    HinvR[k] = ir; HinvI[k] = ii;
+  }
+}
+
+/* ---------- FFT (radix-2, 제자리) ---------- */
+const BITREV = new Uint32Array(N), COS = new Float64Array(N / 2), SIN = new Float64Array(N / 2);
+(function initFFT() {
+  const bits = Math.log2(N);
+  for (let i = 0; i < N; i++) {
+    let r = 0;
+    for (let b = 0; b < bits; b++) r = (r << 1) | ((i >> b) & 1);
+    BITREV[i] = r;
+  }
+  for (let i = 0; i < N / 2; i++) { COS[i] = Math.cos(2 * Math.PI * i / N); SIN[i] = Math.sin(2 * Math.PI * i / N); }
+})();
+function fft(re, im, inverse) {
+  for (let i = 0; i < N; i++) {
+    const j = BITREV[i];
+    if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+  }
+  const sgn = inverse ? 1 : -1;
+  for (let size = 2; size <= N; size <<= 1) {
+    const half = size >> 1, step = N / size;
+    for (let start = 0; start < N; start += size) {
+      for (let j = 0; j < half; j++) {
+        const c = COS[j * step], s = sgn * SIN[j * step];
+        const a = start + j, b = a + half;
+        const tr = re[b] * c - im[b] * s, ti = re[b] * s + im[b] * c;
+        re[b] = re[a] - tr; im[b] = im[a] - ti;
+        re[a] += tr; im[a] += ti;
+      }
+    }
+  }
+  if (inverse) for (let i = 0; i < N; i++) { re[i] /= N; im[i] /= N; }
+}
+
+/* ---------- 버퍼와 재샘플링 ---------- */
+const bx = new Float32Array(W), by = new Float32Array(W), bz = new Float32Array(W);
+let wi = 0, total = 0, nextT = null, lastRawT = 0, rawCount = 0;
+let binSum = [0, 0, 0], binN = 0, lastOut = null;
+const LP_TAU = 1 / (2 * Math.PI * 25);   // 재샘플링 전 25 Hz 저역통과 (1차 2단)
+let lp1 = [0, 0, 0], lp2 = [0, 0, 0];
+function pushResampled(x, y, z) {
+  bx[wi] = x; by[wi] = y; bz[wi] = z;
+  wi = (wi + 1) % W; total++;
+}
+// 구간 평균 재샘플링: 20 ms 구간마다 들어온 샘플을 평균 (고속 샘플링 시 에일리어싱 완화)
+function pushRaw(t, x, y, z) {   // t: 초, x/y/z: gal
+  rawCount++;
+  if (nextT === null || t - lastRawT > 1 || t < lastRawT) {
+    nextT = t + 1 / FS; binSum = [x, y, z]; binN = 1; lastRawT = t; lastOut = [x, y, z];
+    lp1 = [x, y, z]; lp2 = [x, y, z]; return;
+  }
+  const al = (t - lastRawT) / (LP_TAU + (t - lastRawT));
+  const v = [x, y, z];
+  for (let c = 0; c < 3; c++) { lp1[c] += al * (v[c] - lp1[c]); lp2[c] += al * (lp1[c] - lp2[c]); }
+  x = lp2[0]; y = lp2[1]; z = lp2[2];
+  lastRawT = t;
+  while (t >= nextT) {
+    const out = binN ? [binSum[0] / binN, binSum[1] / binN, binSum[2] / binN] : lastOut;
+    pushResampled(out[0], out[1], out[2]);
+    lastOut = out; binSum = [0, 0, 0]; binN = 0; nextT += 1 / FS;
+  }
+  binSum[0] += x; binSum[1] += y; binSum[2] += z; binN++;
+}
+// 안드로이드 앱(네이티브 센서)이 [t, x, y, z, t, x, y, z, ...] 묶음으로 넘겨준다
+function nativeSamples(arr) {
+  for (let i = 0; i + 3 < arr.length; i += 4) pushRaw(arr[i], arr[i + 1], arr[i + 2], arr[i + 3]);
+}
+if (typeof window !== "undefined") window.nativeSamples = nativeSamples;
+
+/* ---------- 판정 ---------- */
+function levelFrac(v) {
+  if (!(v > 0)) return 1;
+  let idx = 0;
+  for (let i = 1; i < LOW.length; i++) if (v >= LOW[i]) idx = i;
+  if (idx === 0) return 1 + Math.min(v / LOW[1], 1) * 0.999;
+  if (idx >= LOW.length - 1) return LOW.length;
+  return idx + 1 + Math.log(v / LOW[idx]) / Math.log(LOW[idx + 1] / LOW[idx]);
+}
+function classOf(frac) { return Math.max(0, Math.min(CLASSES.length - 1, Math.floor(frac) - 1)); }
+
+const mkSpec = () => ({ r1: new Float64Array(N), i1: new Float64Array(N), r2: new Float64Array(N), i2: new Float64Array(N) });
+const RAW = mkSpec(), COR = mkSpec();
+const Ar = new Float64Array(N), Ai = new Float64Array(N), Br = new Float64Array(N), Bi = new Float64Array(N);
+
+function filteredMag(gain, Lw, S) {
+  for (let k = 0; k < N; k++) {
+    Ar[k] = S.r1[k] * gain[k]; Ai[k] = S.i1[k] * gain[k];
+    Br[k] = S.r2[k] * gain[k]; Bi[k] = S.i2[k] * gain[k];
+  }
+  fft(Ar, Ai, true); fft(Br, Bi, true);
+  const m = new Float64Array(Lw);
+  for (let i = 0; i < Lw; i++) m[i] = Math.sqrt(Ar[i] * Ar[i] + Ai[i] * Ai[i] + Br[i] * Br[i]);
+  return m;
+}
+
+function analyze(peakLen) {
+  const Lw = Math.min(total, W);
+  if (Lw < 5 * FS) return null;
+  const xs = [new Float64Array(Lw), new Float64Array(Lw), new Float64Array(Lw)];
+  const src = [bx, by, bz];
+  for (let c = 0; c < 3; c++) {
+    for (let k = 0; k < Lw; k++) xs[c][k] = src[c][(wi - Lw + k + W) % W];
+    let st = 0, sx = 0, stt = 0, stx = 0;     // 선형 추세 제거 (중력, 기울어짐)
+    for (let k = 0; k < Lw; k++) { st += k; sx += xs[c][k]; stt += k * k; stx += k * xs[c][k]; }
+    const slope = (Lw * stx - st * sx) / (Lw * stt - st * st), icpt = (sx - slope * st) / Lw;
+    for (let k = 0; k < Lw; k++) xs[c][k] -= icpt + slope * k;
+    const nt = Math.floor(Lw * 0.05);         // 앞쪽 5% 테이퍼
+    for (let k = 0; k < nt; k++) xs[c][k] *= 0.5 - 0.5 * Math.cos(Math.PI * k / nt);
+    // 끝쪽 3초 테이퍼: 현재 시점에서 잘린 큰 공진 성분이 다른 주파수로 번지는 것을 막는다
+    // (그만큼 최신 3초의 최대값은 몇 초 늦게 반영된다)
+    const ne = Math.min(Math.round(3 * FS), Math.floor(Lw / 4));
+    for (let k = 0; k < ne; k++) xs[c][Lw - 1 - k] *= 0.5 - 0.5 * Math.cos(Math.PI * k / ne);
+  }
+  RAW.r1.fill(0); RAW.i1.fill(0); RAW.r2.fill(0); RAW.i2.fill(0);
+  for (let k = 0; k < Lw; k++) { RAW.r1[k] = xs[0][k]; RAW.i1[k] = xs[1][k]; RAW.r2[k] = xs[2][k]; }
+  fft(RAW.r1, RAW.i1, false); fft(RAW.r2, RAW.i2, false);
+
+  const from = Math.max(Math.floor(Lw * 0.05), Lw - (peakLen || Lw));
+  const peak = m => { let p = 0; for (let i = from; i < m.length; i++) if (m[i] > p) p = m[i]; return p; };
+  const measure = S => {
+    const A = immGains.map(g => peak(filteredMag(g, Lw, S)));
+    const sel = selGains.map(g => peak(filteredMag(g, Lw, S)));
+    const pgaMag = filteredMag(pgaGain, Lw, S);
+    const jm = filteredMag(jmaGain, Lw, S).slice(from).sort((a, b) => b - a);
+    const a03 = jm[Math.min(Math.round(0.3 * FS), jm.length - 1)];
+    const jma = Math.floor(Math.round((2 * Math.log10(a03) + 0.94) * 100) / 10) / 10;
+    return { A, sel, pga: peak(pgaMag), pgaMag, jma };
+  };
+  const raw = measure(RAW);
+  let cor = null;
+  if (HinvR) {   // 수평(x+iy)만 건물 증폭을 나누고, 수직은 그대로
+    for (let k = 0; k < N; k++) {
+      COR.r1[k] = RAW.r1[k] * HinvR[k] - RAW.i1[k] * HinvI[k];
+      COR.i1[k] = RAW.r1[k] * HinvI[k] + RAW.i1[k] * HinvR[k];
+    }
+    COR.r2.set(RAW.r2); COR.i2.set(RAW.i2);
+    cor = measure(COR);
+  }
+  return { raw, cor, Lw };
+}
+
+// 최근 분석 창의 수평 스펙트럼에서 0.15~3 Hz 사이 가장 뚜렷한 봉우리를 건물 고유주기로 추정
+function measureT1() {
+  const P = new Float64Array(N / 2);
+  for (let k = 1; k < N / 2; k++) {
+    const a = RAW.r1[k] ** 2 + RAW.i1[k] ** 2, b = RAW.r1[N - k] ** 2 + RAW.i1[N - k] ** 2;
+    P[k] = (a + b) / 2;
+  }
+  const S = new Float64Array(N / 2);
+  for (let k = 3; k < N / 2 - 3; k++) { let s = 0; for (let j = -2; j <= 2; j++) s += P[k + j]; S[k] = s / 5; }
+  const k0 = Math.ceil(0.15 * N / FS), k1 = Math.floor(3 * N / FS);
+  let kb = k0; for (let k = k0; k <= k1; k++) if (S[k] > S[kb]) kb = k;
+  const band = Array.from(S.slice(k0, k1 + 1)).sort((a, b) => a - b), med = band[band.length >> 1];
+  if (!(S[kb] > 4 * med) || kb === k0 || kb === k1) return null;
+  const y0 = S[kb - 1], y1 = S[kb], y2 = S[kb + 1];
+  const dk = (y0 - y2) / (2 * (y0 - 2 * y1 + y2)) || 0;
+  return { T: 1 / ((kb + dk) * FS / N), ratio: S[kb] / med };
+}
+
+function noiseAt(arr, T) {
+  if (!arr) return null;
+  if (T <= TS[0]) return arr[0];
+  if (T >= TS[NT - 1]) return arr[NT - 1];
+  const x = Math.log2(T / TMIN) * PER_OCT, i = Math.floor(x), r = x - i;
+  return arr[i] * Math.pow(arr[i + 1] / arr[i], r);
+}
+function judge(A, noise) {
+  const lv = A.map((a, i) => (noise && a < NOISE_MARGIN * noise[i]) ? null : levelFrac(a));
+  let best = -1;
+  lv.forEach((v, i) => { if (v !== null && (best < 0 || v > lv[best])) best = i; });
+  return { lv, best };
+}
+function jmaLabel(I) {
+  if (I < 0.5) return "진도 0"; if (I < 1.5) return "진도 1"; if (I < 2.5) return "진도 2";
+  if (I < 3.5) return "진도 3"; if (I < 4.5) return "진도 4"; if (I < 5.0) return "진도 5약";
+  if (I < 5.5) return "진도 5강"; if (I < 6.0) return "진도 6약"; if (I < 6.5) return "진도 6강";
+  return "진도 7";
+}
+
+/* ---------- 화면 ---------- */
+if (typeof document !== "undefined") {
+  const $ = id => document.getElementById(id);
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const native = typeof window.ImmNative !== "undefined";
+  let running = false, timer = null, rateTimer = null, wakeLock = null;
+  let noise = null, calib = null, hold = null, last = null, lastRaw = null, active = null, quietSince = null;
+  let log = [];
+
+  const store = {
+    get(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  /* 저장된 설정 불러오기 */
+  const hcToggle = $("hcToggle");
+  HC = !!store.get("immHc"); hcToggle.checked = HC;
+  const savedSel = store.get("immSelT");
+  if (Array.isArray(savedSel) && savedSel.length === 3) selT = savedSel;
+  const savedBld = store.get("immBld");
+  if (savedBld) bld = Object.assign(bld, savedBld);
+  buildGains(); buildHinv();
+  const savedNoise = store.get("immNoise2");
+  if (savedNoise && savedNoise.hc === HC && savedNoise.raw && savedNoise.raw.length === NT) noise = savedNoise;
+  log = store.get("immLog") || [];
+
+  function fmtT(T) { return T < 1 ? T.toFixed(2) : T.toFixed(1); }
+  function fmtGal(v) { return v < 10 ? v.toFixed(1) : Math.round(v).toString(); }
+  function curNoise() {   // 지금 판정에 쓰는 잡음 바닥 (건물 보정 여부에 맞춰)
+    if (!noise) return null;
+    if (!bld.on) return noise.raw;
+    return noise.bldKey === bldKey() ? noise.cor : null;
+  }
+
+  /* 선택 주기 입력 */
+  [0, 1, 2].forEach(i => {
+    const inp = $("selT" + i);
+    inp.value = selT[i];
+    inp.addEventListener("change", () => {
+      let v = parseFloat(inp.value);
+      if (!isFinite(v)) v = selT[i];
+      v = Math.min(TMAX, Math.max(TMIN, v));
+      inp.value = v; selT[i] = v; selGains[i] = immGain(v, HC);
+      store.set("immSelT", selT); drawSpec();
+    });
+  });
+
+  /* 건물 설정 입력 */
+  function syncBldInputs() {
+    $("bldOn").checked = bld.on; $("bldTop").value = bld.top; $("bldCur").value = bld.cur;
+    $("bldT1").value = bldT1().toFixed(2); $("bldZeta").value = bld.zeta;
+  }
+  function renderBldInfo() {
+    const T1 = bldT1();
+    const [hr, hi] = bldH(1 / T1), amp = Math.sqrt(hr * hr + hi * hi);
+    $("bldInfo").textContent = `${bld.T1 ? "입력·측정값" : "층수 기준식 추정값"} T₁ ${fmtT(T1)}초. 이 층에서 T₁ 흔들림은 지반의 약 ${amp.toFixed(1)}배로 커지는 걸로 계산돼요.`
+      + (bld.on && !curNoise() && noise ? " 건물 설정이 바뀌어서 잡음 측정을 다시 해주세요." : "");
+  }
+  function bldChanged() {
+    store.set("immBld", bld); buildHinv(); hold = null;
+    renderBldInfo(); renderStatus(); drawSpec();
+  }
+  $("bldOn").addEventListener("change", () => { bld.on = $("bldOn").checked; bldChanged(); });
+  $("bldTop").addEventListener("change", () => {
+    const v = Math.round(parseFloat($("bldTop").value));
+    if (v >= 2) bld.top = v;
+    if (bld.cur > bld.top) bld.cur = bld.top;
+    syncBldInputs(); bldChanged();
+  });
+  $("bldCur").addEventListener("change", () => {
+    const v = Math.round(parseFloat($("bldCur").value));
+    if (v >= 1) bld.cur = Math.min(v, bld.top);
+    syncBldInputs(); bldChanged();
+  });
+  $("bldT1").addEventListener("change", () => {
+    const v = parseFloat($("bldT1").value);
+    if (v >= 0.1 && v <= 10) bld.T1 = v;
+    syncBldInputs(); bldChanged();
+  });
+  $("bldZeta").addEventListener("change", () => {
+    const v = parseFloat($("bldZeta").value);
+    if (v >= 1 && v <= 20) bld.zeta = v;
+    syncBldInputs(); bldChanged();
+  });
+  $("t1Est").addEventListener("click", () => { bld.T1 = null; syncBldInputs(); bldChanged(); });
+  $("t1Measure").addEventListener("click", () => {
+    if (total < 20 * FS) { $("bldInfo").textContent = "20초 이상 측정한 뒤에 눌러 주세요."; return; }
+    analyze();
+    const r = measureT1();
+    if (!r) { $("bldInfo").textContent = "뚜렷한 고유주기 봉우리를 찾지 못했어요. 조용할 때, 높은 층에서 다시 시도해 보세요."; return; }
+    bld.T1 = Math.round(r.T * 100) / 100;
+    syncBldInputs(); bldChanged();
+    $("bldInfo").textContent = `측정한 고유주기 ${fmtT(bld.T1)}초로 설정했어요 (봉우리 선명도 ${r.ratio.toFixed(0)}배). ` + $("bldInfo").textContent;
+  });
+
+  /* 표시 */
+  function paintChip(el, frac) {
+    const idx = classOf(frac);
+    el.style.backgroundColor = MMI_COLORS[idx];
+    el.classList.toggle("light-text", idx >= 8);
+    el.textContent = CLASSES[idx];
+  }
+  function paintHero(frac, T, rawJ) {
+    const hero = $("hero"), idx = classOf(frac);
+    hero.style.backgroundColor = MMI_COLORS[idx];
+    hero.classList.toggle("light-text", idx >= 8);
+    $("numeral").textContent = CLASSES[classOf(frac)];
+    $("heroMain").textContent = `대표 주기 ${fmtT(T)}초`;
+    let sub = `소수 진도 ${frac.toFixed(2)}`;
+    if (rawJ && rawJ.best >= 0) sub += `, 이 층 실측 ${CLASSES[classOf(rawJ.lv[rawJ.best])]} (${fmtT(TS[rawJ.best])}초)`;
+    if (!curNoise()) sub += ", 잡음 측정 전";
+    $("heroSub").textContent = sub;
+  }
+
+  function renderStatus() {
+    const nz = curNoise();
+    $("stNoise").textContent = calib
+      ? `측정 중… ${Math.max(0, Math.ceil(CAL_SEC - (total - calib) / FS))}초 남음`
+      : nz ? `1초 대역 ${fmtGal(noiseAt(nz, 1))} gal, 10초 대역 ${fmtGal(nz[NT - 1])} gal (보정값)`
+           : (noise && bld.on) ? "건물 설정이 바뀌어 다시 측정이 필요해요" : "아직 측정하지 않았어요. 장주기 판정이 부풀 수 있어요";
+    $("stNoise").classList.toggle("warn", !nz && !calib);
+    $("stMax").textContent = hold && hold.best >= 0
+      ? `${CLASSES[classOf(hold.lv[hold.best])]} (${fmtT(TS[hold.best])}초, ${hold.lv[hold.best].toFixed(2)})` : "–";
+    $("heroCap").textContent = bld.on ? `IMM 진도, 지반 추정 (${bld.cur}층 보정), 최근 40초` : "IMM 진도, 최근 40초";
+    $("specNote").textContent = bld.on
+      ? "실선은 지반 추정, 가는 선은 이 층 실측, 점선은 기록 최대, 회색 영역은 잡음 바닥이에요."
+      : "실선은 최근 40초, 점선은 기록 최대, 회색 영역은 잡음 바닥이에요.";
+  }
+
+  function renderLog() {
+    const ol = $("log");
+    ol.innerHTML = "";
+    if (!log.length) { ol.innerHTML = '<li class="empty">아직 기록이 없어요</li>'; return; }
+    log.slice(0, 20).forEach(e => {
+      const li = document.createElement("li");
+      const chip = document.createElement("span");
+      chip.className = "chip"; chip.textContent = CLASSES[e.c]; chip.style.backgroundColor = MMI_COLORS[e.c];
+      if (e.c >= 8) chip.style.color = "#ffffff";
+      const txt = document.createElement("span");
+      const d = new Date(e.t);
+      txt.textContent = `${d.toLocaleDateString("ko-KR")} ${d.toLocaleTimeString("ko-KR")}, 대표 주기 ${fmtT(e.T)}초, PGA ${fmtGal(e.pga)} gal, JMA ${e.jma.toFixed(1)}${e.b ? ", 지반 추정" : ""}`;
+      li.append(chip, txt); ol.append(li);
+    });
+  }
+
+  function setupCanvas(cv) {
+    const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+    const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w: r.width, h: r.height };
+  }
+
+  function drawSpec() {
+    const { ctx, w, h } = setupCanvas($("spec"));
+    const L = 34, R = 10, Tp = 16, B = 24, pw = w - L - R, ph = h - Tp - B;
+    const xp = T => L + (Math.log10(T) + 1) / 2 * pw;
+    const yp = v => Tp + (10.5 - v) / 9.5 * ph;
+    const ink = css("--ink"), muted = css("--muted"), line = css("--line"), accent = css("--accent");
+    ctx.font = "11px 'IBM Plex Sans KR', sans-serif";
+    for (let c = 0; c < CLASSES.length; c++) {
+      const y1 = yp(Math.min(c + 2, 10.5)), y2 = yp(c + 1);
+      ctx.globalAlpha = 0.22; ctx.fillStyle = MMI_COLORS[c]; ctx.fillRect(L, y1, pw, y2 - y1);
+      ctx.globalAlpha = 1; ctx.fillStyle = muted; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      ctx.fillText(CLASSES[c], L - 6, (y1 + y2) / 2);
+    }
+    ctx.strokeStyle = line; ctx.lineWidth = 1;
+    [0.1, 0.3, 1, 3, 10].forEach(T => {
+      ctx.beginPath(); ctx.moveTo(xp(T), Tp); ctx.lineTo(xp(T), Tp + ph); ctx.stroke();
+      ctx.fillStyle = muted; ctx.textAlign = "center"; ctx.textBaseline = "top";
+      ctx.fillText(T + "초", xp(T), Tp + ph + 6);
+    });
+    const nz = curNoise();
+    if (nz) {
+      ctx.beginPath(); ctx.moveTo(xp(TS[0]), yp(1));
+      TS.forEach((T, i) => ctx.lineTo(xp(T), yp(Math.min(levelFrac(NOISE_MARGIN * nz[i]), 10.5))));
+      ctx.lineTo(xp(TS[NT - 1]), yp(1)); ctx.closePath();
+      ctx.globalAlpha = 0.35; ctx.fillStyle = muted; ctx.fill(); ctx.globalAlpha = 1;
+    }
+    if (bld.on) {   // 건물 고유주기 표시
+      const T1 = bldT1();
+      if (T1 >= 0.1 && T1 <= 10) {
+        ctx.strokeStyle = accent; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(xp(T1), Tp); ctx.lineTo(xp(T1), Tp + ph); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = accent; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillText("건물 T₁", xp(T1), Tp - 2);
+      }
+    }
+    selT.forEach((T, i) => {   // 선택 주기 눈금
+      ctx.fillStyle = ink; ctx.beginPath();
+      ctx.moveTo(xp(T), Tp + ph); ctx.lineTo(xp(T) - 4, Tp + ph - 7); ctx.lineTo(xp(T) + 4, Tp + ph - 7); ctx.closePath(); ctx.fill();
+    });
+    const series = (lv, dash, color, width) => {
+      ctx.setLineDash(dash); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+      let pen = false;
+      lv.forEach((v, i) => {
+        if (v === null) { pen = false; return; }
+        const x = xp(TS[i]), y = yp(Math.min(v, 10.5));
+        if (pen) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        pen = true;
+      });
+      ctx.stroke(); ctx.setLineDash([]);
+    };
+    if (hold) series(hold.lv, [4, 4], muted, 1.5);
+    if (lastRaw) series(lastRaw.lv, [], muted, 1);
+    if (last) {
+      series(last.lv, [], ink, 2.2);
+      if (last.best >= 0) {
+        ctx.fillStyle = ink; ctx.beginPath();
+        ctx.arc(xp(TS[last.best]), yp(Math.min(last.lv[last.best], 10.5)), 4.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
+  function drawWave(res) {
+    const { ctx, w, h } = setupCanvas($("wave"));
+    const muted = css("--muted"), ink = css("--ink"), line = css("--line");
+    ctx.font = "11px 'IBM Plex Sans KR', sans-serif";
+    if (!res) { ctx.fillStyle = muted; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("데이터를 모으는 중이에요", w / 2, h / 2); return; }
+    const m = res.pgaMag, n = m.length;
+    let mx = 5; for (let i = 0; i < n; i++) if (m[i] > mx) mx = m[i];
+    const top = mx * 1.1, L = 8, R = 8, Tp = 18, B = 8, pw = w - L - R, ph = h - Tp - B;
+    for (let c = 2; c < LOW.length; c++) {
+      if (LOW[c] > top) break;
+      const y = Tp + ph - LOW[c] / top * ph;
+      ctx.strokeStyle = line; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = muted; ctx.textAlign = "left"; ctx.textBaseline = "bottom"; ctx.fillText(CLASSES[c] + " 하한", L + 2, y - 1);
+    }
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.2; ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x = L + (i + (W - n)) / (W - 1) * pw, y = Tp + ph - m[i] / top * ph;
+      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+    ctx.fillStyle = muted; ctx.textAlign = "right"; ctx.textBaseline = "top";
+    ctx.fillText(`최대 ${fmtGal(res.pga)} gal${bld.on ? " (지반 추정)" : ""}`, w - R, 2);
+  }
+
+  function renderSel(prim) {
+    const nz = curNoise();
+    [0, 1, 2].forEach(i => {
+      const a = prim.sel[i], nv = noiseAt(nz, selT[i]);
+      const chip = $("selC" + i);
+      if (nv !== null && a < NOISE_MARGIN * nv) {
+        chip.style.backgroundColor = "transparent"; chip.classList.remove("light-text"); chip.textContent = "잡음";
+        $("selS" + i).textContent = `${fmtGal(a)} gal`;
+      } else {
+        const f = levelFrac(a);
+        paintChip(chip, f);
+        $("selS" + i).textContent = `${f.toFixed(2)}, ${fmtGal(a)} gal`;
+      }
+    });
+  }
+
+  function tick() {
+    if (calib && (total - calib) >= CAL_SEC * FS) {
+      const r = analyze(CAL_SEC * FS);
+      if (r) {
+        noise = { hc: HC, raw: r.raw.A, cor: r.cor ? r.cor.A : null, bldKey: bldKey() };
+        store.set("immNoise2", noise); hold = null;
+      }
+      calib = null; $("calBtn").disabled = false; renderBldInfo();
+    }
+    const res = analyze();
+    if (!res) {
+      $("heroMain").textContent = "데이터를 모으는 중이에요";
+      $("heroSub").textContent = `${Math.max(0, Math.ceil(5 - total / FS))}초 뒤 첫 판정`;
+      renderStatus(); drawSpec(); drawWave(null); return;
+    }
+    const prim = res.cor || res.raw;
+    const nz = calib ? null : curNoise();
+    const j = judge(prim.A, nz);
+    last = j;
+    lastRaw = res.cor ? judge(res.raw.A, calib || !noise ? null : noise.raw) : null;
+    if (!hold) hold = { lv: j.lv.slice(), best: j.best };
+    else {
+      j.lv.forEach((v, i) => { if (v !== null && (hold.lv[i] === null || v > hold.lv[i])) hold.lv[i] = v; });
+      hold.best = -1;
+      hold.lv.forEach((v, i) => { if (v !== null && (hold.best < 0 || v > hold.lv[hold.best])) hold.best = i; });
+    }
+    if (j.best >= 0) paintHero(j.lv[j.best], TS[j.best], lastRaw);
+    else {
+      const hero = $("hero"); hero.style.backgroundColor = MMI_COLORS[0]; hero.classList.remove("light-text");
+      $("numeral").textContent = "I"; $("heroMain").textContent = "잡음 수준이에요"; $("heroSub").textContent = "모든 주기가 잡음 바닥 아래예요";
+    }
+    const pf = levelFrac(prim.pga);
+    $("pgaVal").textContent = CLASSES[classOf(pf)];
+    $("pgaSub").textContent = `PGA ${fmtGal(prim.pga)} gal`;
+    $("jmaVal").textContent = isFinite(prim.jma) ? prim.jma.toFixed(1) : "–";
+    $("jmaSub").textContent = isFinite(prim.jma) ? jmaLabel(prim.jma) : "\u00a0";
+    renderSel(prim);
+
+    // 감지 기록: III 이상이 되면 이벤트 시작, 30초 조용하면 종료
+    const cur = j.best >= 0 ? classOf(j.lv[j.best]) : 0;
+    if (!calib && cur >= LOG_FROM) {
+      quietSince = null;
+      const entry = { t: Date.now(), c: cur, T: TS[j.best], pga: prim.pga, jma: isFinite(prim.jma) ? prim.jma : 0, b: bld.on };
+      if (!active) { active = entry; log.unshift(entry); }
+      else if (cur > active.c) { Object.assign(active, entry); }
+      store.set("immLog", log.slice(0, 50)); renderLog();
+    } else if (active) {
+      if (quietSince === null) quietSince = Date.now();
+      else if (Date.now() - quietSince > 30000) { active = null; quietSince = null; }
+    }
+    renderStatus(); drawSpec(); drawWave(prim);
+  }
+
+  function onMotion(e) {
+    const a = e.accelerationIncludingGravity;
+    if (!a || a.x === null || a.x === undefined) return;
+    pushRaw((e.timeStamp || performance.now()) / 1000, a.x * 100, a.y * 100, a.z * 100);
+  }
+
+  async function start() {
+    if (native) {
+      if (!window.ImmNative.start()) { $("heroMain").textContent = "가속도 센서를 찾지 못했어요"; $("heroSub").textContent = "이 기기에서는 측정할 수 없어요"; return; }
+      $("stSensor").textContent = window.ImmNative.info();
+    } else try {
+      if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+        const p = await DeviceMotionEvent.requestPermission();
+        if (p !== "granted") { $("heroMain").textContent = "센서 권한이 거부됐어요"; $("heroSub").textContent = "설정에서 이 사이트의 동작 및 방향 접근을 허용해 주세요"; return; }
+      }
+    } catch (err) {
+      $("heroMain").textContent = "센서 권한을 요청할 수 없어요";
+      $("heroSub").textContent = "이 페이지를 브라우저에서 직접 열어 주세요";
+      return;
+    }
+    if (!native) window.addEventListener("devicemotion", onMotion);
+    running = true; rawCount = 0;
+    $("startBtn").textContent = "정지"; $("startBtn").classList.remove("primary");
+    $("calBtn").disabled = false; $("t1Measure").disabled = false;
+    timer = setInterval(tick, 1000);
+    let lastCount = 0, silentSec = 0;
+    rateTimer = setInterval(() => {
+      const r = rawCount - lastCount; lastCount = rawCount;
+      silentSec = r === 0 ? silentSec + 1 : 0;
+      $("stRate").textContent = r ? `${r} Hz 수신, ${FS} Hz로 재샘플링` : "수신 없음";
+      $("stRate").classList.toggle("warn", r > 0 && r < 40);
+      if (silentSec === 3) {
+        $("heroMain").textContent = "센서 값이 들어오지 않아요";
+        $("heroSub").textContent = native ? "앱을 다시 시작해 보세요" : "앱 안 미리보기에서는 막힐 수 있어요. 브라우저에서 직접 열어 주세요";
+      }
+    }, 1000);
+    try { if (!native && "wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+  }
+  function stop() {
+    if (native) window.ImmNative.stop(); else window.removeEventListener("devicemotion", onMotion);
+    clearInterval(timer); clearInterval(rateTimer);
+    running = false; calib = null; nextT = null;
+    $("startBtn").textContent = "시작"; $("startBtn").classList.add("primary");
+    $("calBtn").disabled = true; $("t1Measure").disabled = true;
+    try { if (wakeLock) wakeLock.release(); } catch (e) {}
+    wakeLock = null;
+  }
+
+  $("startBtn").addEventListener("click", () => running ? stop() : start());
+  $("calBtn").addEventListener("click", () => { calib = total; $("calBtn").disabled = true; renderStatus(); });
+  $("resetBtn").addEventListener("click", () => { hold = null; active = null; renderStatus(); drawSpec(); });
+  hcToggle.addEventListener("change", () => {
+    HC = hcToggle.checked; store.set("immHc", HC);
+    buildGains();
+    noise = null; hold = null; store.set("immNoise2", null);
+    renderStatus(); drawSpec();
+  });
+  window.addEventListener("resize", () => { drawSpec(); drawWave(null); });
+  document.addEventListener("visibilitychange", async () => {
+    if (running && !native && document.visibilityState === "visible") {
+      try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+    }
+  });
+
+  syncBldInputs(); renderBldInfo(); renderStatus(); renderLog(); drawSpec(); drawWave(null);
+}
+</script>
+</body>
+</html>
