@@ -331,15 +331,20 @@ function nativeSamples(arr) {
 if (typeof window !== "undefined") window.nativeSamples = nativeSamples;
 
 /* ---------- 판정 ---------- */
+// 소수 진도 (반올림 방식): 각 등급의 KMA 하한이 x.5에 오도록 맞춘다.
+// 예) VII 하한 = 6.50, VIII 하한 = 7.50 → 6.50~7.49가 VII. JMA 계측진도와 같은 방식.
 function levelFrac(v) {
-  if (!(v > 0)) return 1;
+  if (!(v > 0)) return 0.5;
   let idx = 0;
   for (let i = 1; i < LOW.length; i++) if (v >= LOW[i]) idx = i;
-  if (idx === 0) return 1 + Math.min(v / LOW[1], 1) * 0.999;
-  if (idx >= LOW.length - 1) return LOW.length;
-  return idx + 1 + Math.log(v / LOW[idx]) / Math.log(LOW[idx + 1] / LOW[idx]);
+  if (idx === 0) return 0.5 + Math.min(v / LOW[1], 1) * 0.999;
+  if (idx >= LOW.length - 1) {   // X+: IX 구간 폭으로 이어서 늘리되 X+ 안(10.49)에서 멈춘다
+    const n = LOW.length - 1;
+    return Math.min(n + 0.5 + Math.log(v / LOW[n]) / Math.log(LOW[n] / LOW[n - 1]), n + 1.49);
+  }
+  return idx + 0.5 + Math.log(v / LOW[idx]) / Math.log(LOW[idx + 1] / LOW[idx]);
 }
-function classOf(frac) { return Math.max(0, Math.min(CLASSES.length - 1, Math.floor(frac) - 1)); }
+function classOf(frac) { return Math.max(0, Math.min(CLASSES.length - 1, Math.round(frac) - 1)); }
 
 const mkSpec = () => ({ r1: new Float64Array(N), i1: new Float64Array(N), r2: new Float64Array(N), i2: new Float64Array(N) });
 const RAW = mkSpec(), COR = mkSpec();
@@ -468,6 +473,8 @@ if (typeof document !== "undefined") {
 
   function fmtT(T) { return T < 1 ? T.toFixed(2) : T.toFixed(1); }
   function fmtGal(v) { return v < 10 ? v.toFixed(1) : Math.round(v).toString(); }
+  // 소수 진도 표시는 둘째 자리에서 버린다 (6.4987이 6.50으로 보여 등급과 어긋나지 않게)
+  function fmtFrac(v) { return (Math.floor(v * 100 + 1e-9) / 100).toFixed(2); }
   function curNoise() {   // 지금 판정에 쓰는 잡음 바닥 (건물 보정 여부에 맞춰)
     if (!noise) return null;
     if (!bld.on) return noise.raw;
@@ -548,7 +555,7 @@ if (typeof document !== "undefined") {
     hero.classList.toggle("light-text", idx >= 8);
     $("numeral").textContent = CLASSES[classOf(frac)];
     $("heroMain").textContent = `대표 주기 ${fmtT(T)}초`;
-    let sub = `소수 진도 ${frac.toFixed(2)}`;
+    let sub = `소수 진도 ${fmtFrac(frac)}`;
     if (rawJ && rawJ.best >= 0) sub += `, 이 층 실측 ${CLASSES[classOf(rawJ.lv[rawJ.best])]} (${fmtT(TS[rawJ.best])}초)`;
     if (!curNoise()) sub += ", 잡음 측정 전";
     $("heroSub").textContent = sub;
@@ -562,7 +569,7 @@ if (typeof document !== "undefined") {
            : (noise && bld.on) ? "건물 설정이 바뀌어 다시 측정이 필요해요" : "아직 측정하지 않았어요. 장주기 판정이 부풀 수 있어요";
     $("stNoise").classList.toggle("warn", !nz && !calib);
     $("stMax").textContent = hold && hold.best >= 0
-      ? `${CLASSES[classOf(hold.lv[hold.best])]} (${fmtT(TS[hold.best])}초, ${hold.lv[hold.best].toFixed(2)})` : "–";
+      ? `${CLASSES[classOf(hold.lv[hold.best])]} (${fmtT(TS[hold.best])}초, ${fmtFrac(hold.lv[hold.best])})` : "–";
     $("heroCap").textContent = bld.on ? `IMM 진도, 지반 추정 (${bld.cur}층 보정), 최근 40초` : "IMM 진도, 최근 40초";
     $("specNote").textContent = bld.on
       ? "실선은 지반 추정, 가는 선은 이 층 실측, 점선은 기록 최대, 회색 영역은 잡음 바닥이에요."
@@ -596,11 +603,11 @@ if (typeof document !== "undefined") {
     const { ctx, w, h } = setupCanvas($("spec"));
     const L = 34, R = 10, Tp = 16, B = 24, pw = w - L - R, ph = h - Tp - B;
     const xp = T => L + (Math.log10(T) + 1) / 2 * pw;
-    const yp = v => Tp + (10.5 - v) / 9.5 * ph;
+    const yp = v => Tp + (10.5 - v) / 10 * ph;
     const ink = css("--ink"), muted = css("--muted"), line = css("--line"), accent = css("--accent");
     ctx.font = "11px 'IBM Plex Sans KR', sans-serif";
     for (let c = 0; c < CLASSES.length; c++) {
-      const y1 = yp(Math.min(c + 2, 10.5)), y2 = yp(c + 1);
+      const y1 = yp(c + 1.5), y2 = yp(c + 0.5);
       ctx.globalAlpha = 0.22; ctx.fillStyle = MMI_COLORS[c]; ctx.fillRect(L, y1, pw, y2 - y1);
       ctx.globalAlpha = 1; ctx.fillStyle = muted; ctx.textAlign = "right"; ctx.textBaseline = "middle";
       ctx.fillText(CLASSES[c], L - 6, (y1 + y2) / 2);
@@ -613,9 +620,9 @@ if (typeof document !== "undefined") {
     });
     const nz = curNoise();
     if (nz) {
-      ctx.beginPath(); ctx.moveTo(xp(TS[0]), yp(1));
+      ctx.beginPath(); ctx.moveTo(xp(TS[0]), yp(0.5));
       TS.forEach((T, i) => ctx.lineTo(xp(T), yp(Math.min(levelFrac(NOISE_MARGIN * nz[i]), 10.5))));
-      ctx.lineTo(xp(TS[NT - 1]), yp(1)); ctx.closePath();
+      ctx.lineTo(xp(TS[NT - 1]), yp(0.5)); ctx.closePath();
       ctx.globalAlpha = 0.35; ctx.fillStyle = muted; ctx.fill(); ctx.globalAlpha = 1;
     }
     if (bld.on) {   // 건물 고유주기 표시
@@ -686,7 +693,7 @@ if (typeof document !== "undefined") {
       } else {
         const f = levelFrac(a);
         paintChip(chip, f);
-        $("selS" + i).textContent = `${f.toFixed(2)}, ${fmtGal(a)} gal`;
+        $("selS" + i).textContent = `${fmtFrac(f)}, ${fmtGal(a)} gal`;
       }
     });
   }
