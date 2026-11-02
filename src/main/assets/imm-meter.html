@@ -49,7 +49,7 @@ main { max-width: 560px; margin: 0 auto; padding: 16px 16px 40px; }
 .hero-side .cap { font-size: 13px; opacity: .8; }
 .hero-side .big { font-size: 22px; font-weight: 600; line-height: 1.25; }
 .hero-side .small { font-size: 13px; opacity: .85; margin-top: 4px; }
-.refs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 0; }
+.refs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 0; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .card .cap { font-size: 12px; color: var(--muted); }
 .card .val { font-size: 18px; font-weight: 600; }
@@ -112,7 +112,9 @@ summary { cursor: pointer; font-weight: 500; }
   <div class="refs">
     <div class="card"><div class="cap">PGA 기준 MMI (KMA)</div><div class="val" id="pgaVal">–</div><div class="sub" id="pgaSub">&nbsp;</div></div>
     <div class="card"><div class="cap">JMA 계측진도</div><div class="val" id="jmaVal">–</div><div class="sub" id="jmaSub">&nbsp;</div></div>
+    <div class="card"><div class="cap">장주기 계급 (JMA)</div><div class="val" id="lpVal">–</div><div class="sub" id="lpSub">&nbsp;</div></div>
   </div>
+  <p class="note" id="lpNote"></p>
 
   <section>
     <h2>선택 주기 진도</h2>
@@ -167,7 +169,7 @@ summary { cursor: pointer; font-weight: 500; }
   </dl>
 
   <section>
-    <h2>감지 기록 (III 이상)</h2>
+    <h2>감지 기록 (IMM III 이상, 장주기 계급 1 이상)</h2>
     <ol class="log" id="log"><li class="empty">아직 기록이 없어요</li></ol>
   </section>
 
@@ -176,6 +178,7 @@ summary { cursor: pointer; font-weight: 500; }
     <p>폰을 화면이 위로 오게 바닥에 놓고 테이프로 고정하세요. 책상 위는 책상 자체가 흔들려서 값이 커져요. 처음 쓸 때와 장소를 옮겼을 때는 조용한 상태에서 잡음 측정을 한 번 해주세요.</p>
     <p>원시 가속도를 25 Hz 저역통과 후 50 Hz로 재샘플링하고, 최근 40초 파형에 신호 가중치 W(f) = 1/n(1/f)를 곱한 뒤 주기 0.1~10초의 IMM_T 필터(JMA 필터를 이동하고 최대 이득을 1로 정규화)를 1/6옥타브 간격으로 걸어요. 각 주기의 최대값을 KMA MMI 하한과 비교하고, 가장 높은 등급을 대표 진도로 표시해요. 잡음 바닥의 1.5배를 넘지 못한 주기는 판정에서 빠져요.</p>
     <p>건물 보정은 건물을 균일한 전단 기둥으로 보고 1~5차 모드(주기 T₁, T₁/3, T₁/5…)의 증폭률을 계산해 수평 성분에서 나눠요. 역보정 배율은 최대 3배로 제한하고, 현재 시점에서 잘린 파형이 번지지 않도록 최근 3초는 서서히 줄여서 반영해요(그래서 강한 흔들림의 최대값은 2~3초 늦게 나타나요). 고유주기가 10%만 틀려도 그 근처 값이 크게 달라지니, 조용할 때 고유주기 측정을 해 두는 걸 권장해요. 층수 기준식은 국내 벽식 아파트용 0.0488·H^0.75(층고 2.8 m 가정)예요.</p>
+    <p>장주기 계급은 일본 기상청 방식처럼 수평 흔들림을 감쇠 5% 진동자에 넣었을 때의 절대속도 응답(Sva)을 주기 1.6~7.8초(0.2초 간격)에서 구해 가장 큰 값으로 정해요. 계급 1~4 하한은 5, 15, 50, 100 cm/s예요. 지반 흔들림 기준이라, 고층에서는 건물 보정을 켜야 건물 증폭이 두 번 들어가지 않아요.</p>
   </details>
 </main>
 
@@ -229,6 +232,33 @@ function buildGains() {
     pgaGain[k] = f < 0.05 ? 0 : f < 0.1 ? 0.5 - 0.5 * Math.cos(Math.PI * (f - 0.05) / 0.05) : 1;
   }
 }
+
+/* ---------- 장주기 지진동 계급 (JMA) ----------
+   감쇠 5% 진동자의 절대속도 응답(Sva), 주기 1.6~7.8초(0.2초 간격), 수평 2성분 합성.
+   주파수 영역에서 계산: 절대가속도 전달함수 (1 + 2iζr)/(1 - r² + 2iζr)를 iω로 나눈다. */
+const LP_T = Array.from({ length: 32 }, (_, i) => Math.round((1.6 + 0.2 * i) * 10) / 10);
+const LP_LIMITS = [5, 15, 50, 100];
+let svaGr = [], svaGi = [];
+function buildSvaGains() {
+  const z = 0.05;
+  svaGr = []; svaGi = [];
+  LP_T.forEach(Tn => {
+    const gr = new Float64Array(N), gi = new Float64Array(N);
+    for (let k = 1; k < N; k++) {
+      const sf = (k <= N / 2 ? k : k - N) * FS / N, fa = Math.abs(sf);
+      const hp = fa < 0.03 ? 0 : fa < 0.06 ? 0.5 - 0.5 * Math.cos(Math.PI * (fa - 0.03) / 0.03) : 1;
+      const r = fa * Tn, ni = 2 * z * r, dr = 1 - r * r, dd = dr * dr + ni * ni;
+      const ar = (dr + ni * ni) / dd, ai = (ni * dr - ni) / dd;
+      const om = 2 * Math.PI * fa;
+      let vr = ai / om, vi = -ar / om;
+      if (sf < 0) vi = -vi;
+      gr[k] = hp * vr; gi[k] = hp * vi;
+    }
+    svaGr.push(gr); svaGi.push(gi);
+  });
+}
+buildSvaGains();
+function lpClass(sva) { let c = 0; LP_LIMITS.forEach((l, i) => { if (sva >= l) c = i + 1; }); return c; }
 
 /* ---------- 건물 증폭 모델 (균일 전단 기둥, 1~5차 모드) ---------- */
 let bld = { on: false, top: 25, cur: 20, T1: null, zeta: 5 };
@@ -392,7 +422,20 @@ function analyze(peakLen) {
     const jm = filteredMag(jmaGain, Lw, S).slice(from).sort((a, b) => b - a);
     const a03 = jm[Math.min(Math.round(0.3 * FS), jm.length - 1)];
     const jma = Math.floor(Math.round((2 * Math.log10(a03) + 0.94) * 100) / 10) / 10;
-    return { A, sel, pga: peak(pgaMag), pgaMag, jma };
+    let sva = 0, svaT = LP_T[0];
+    for (let p = 0; p < LP_T.length; p++) {
+      const gr = svaGr[p], gi = svaGi[p];
+      for (let k = 0; k < N; k++) {
+        Ar[k] = S.r1[k] * gr[k] - S.i1[k] * gi[k];
+        Ai[k] = S.r1[k] * gi[k] + S.i1[k] * gr[k];
+      }
+      fft(Ar, Ai, true);
+      let pk = 0;
+      for (let i = from; i < Lw; i++) { const m2 = Ar[i] * Ar[i] + Ai[i] * Ai[i]; if (m2 > pk) pk = m2; }
+      pk = Math.sqrt(pk);
+      if (pk > sva) { sva = pk; svaT = LP_T[p]; }
+    }
+    return { A, sel, pga: peak(pgaMag), pgaMag, jma, sva, svaT };
   };
   const raw = measure(RAW);
   let cor = null;
@@ -475,6 +518,11 @@ if (typeof document !== "undefined") {
   function fmtGal(v) { return v < 10 ? v.toFixed(1) : Math.round(v).toString(); }
   // 소수 진도 표시는 둘째 자리에서 버린다 (6.4987이 6.50으로 보여 등급과 어긋나지 않게)
   function fmtFrac(v) { return (Math.floor(v * 100 + 1e-9) / 100).toFixed(2); }
+  function curNoiseSva() {
+    if (!noise || noise.svaRaw === undefined) return null;
+    if (!bld.on) return noise.svaRaw;
+    return noise.bldKey === bldKey() ? noise.svaCor : null;
+  }
   function curNoise() {   // 지금 판정에 쓰는 잡음 바닥 (건물 보정 여부에 맞춰)
     if (!noise) return null;
     if (!bld.on) return noise.raw;
@@ -568,8 +616,10 @@ if (typeof document !== "undefined") {
       : nz ? `1초 대역 ${fmtGal(noiseAt(nz, 1))} gal, 10초 대역 ${fmtGal(nz[NT - 1])} gal (보정값)`
            : (noise && bld.on) ? "건물 설정이 바뀌어 다시 측정이 필요해요" : "아직 측정하지 않았어요. 장주기 판정이 부풀 수 있어요";
     $("stNoise").classList.toggle("warn", !nz && !calib);
-    $("stMax").textContent = hold && hold.best >= 0
-      ? `${CLASSES[classOf(hold.lv[hold.best])]} (${fmtT(TS[hold.best])}초, ${fmtFrac(hold.lv[hold.best])})` : "–";
+    $("stMax").textContent = (hold && hold.best >= 0
+      ? `${CLASSES[classOf(hold.lv[hold.best])]} (${fmtT(TS[hold.best])}초, ${fmtFrac(hold.lv[hold.best])})` : "–")
+      + (hold && hold.sva ? `, 장주기 계급 ${lpClass(hold.sva)} (Sva ${fmtGal(hold.sva)} cm/s, ${hold.svaT.toFixed(1)}초)` : "");
+    $("lpNote").textContent = bld.on ? "" : "장주기 계급은 지반 흔들림 기준이에요. 고층에서는 건물 보정을 켜야 맞게 나와요.";
     $("heroCap").textContent = bld.on ? `IMM 진도, 지반 추정 (${bld.cur}층 보정), 최근 40초` : "IMM 진도, 최근 40초";
     $("specNote").textContent = bld.on
       ? "실선은 지반 추정, 가는 선은 이 층 실측, 점선은 기록 최대, 회색 영역은 잡음 바닥이에요."
@@ -587,7 +637,7 @@ if (typeof document !== "undefined") {
       if (e.c >= 8) chip.style.color = "#ffffff";
       const txt = document.createElement("span");
       const d = new Date(e.t);
-      txt.textContent = `${d.toLocaleDateString("ko-KR")} ${d.toLocaleTimeString("ko-KR")}, 대표 주기 ${fmtT(e.T)}초, PGA ${fmtGal(e.pga)} gal, JMA ${e.jma.toFixed(1)}${e.b ? ", 지반 추정" : ""}`;
+      txt.textContent = `${d.toLocaleDateString("ko-KR")} ${d.toLocaleTimeString("ko-KR")}, 대표 주기 ${fmtT(e.T)}초, PGA ${fmtGal(e.pga)} gal, JMA ${e.jma.toFixed(1)}${e.lp ? `, 장주기 계급 ${e.lp}` : ""}${e.b ? ", 지반 추정" : ""}`;
       li.append(chip, txt); ol.append(li);
     });
   }
@@ -702,7 +752,8 @@ if (typeof document !== "undefined") {
     if (calib && (total - calib) >= CAL_SEC * FS) {
       const r = analyze(CAL_SEC * FS);
       if (r) {
-        noise = { hc: HC, raw: r.raw.A, cor: r.cor ? r.cor.A : null, bldKey: bldKey() };
+        noise = { hc: HC, raw: r.raw.A, cor: r.cor ? r.cor.A : null, bldKey: bldKey(),
+                  svaRaw: r.raw.sva, svaCor: r.cor ? r.cor.sva : null };
         store.set("immNoise2", noise); hold = null;
       }
       calib = null; $("calBtn").disabled = false; renderBldInfo();
@@ -717,13 +768,17 @@ if (typeof document !== "undefined") {
     const nz = calib ? null : curNoise();
     const j = judge(prim.A, nz);
     last = j;
+    const nsv = calib ? null : curNoiseSva();
+    const lpOk = !(nsv !== null && prim.sva < NOISE_MARGIN * nsv);
+    const lpc = lpOk ? lpClass(prim.sva) : 0;
     lastRaw = res.cor ? judge(res.raw.A, calib || !noise ? null : noise.raw) : null;
-    if (!hold) hold = { lv: j.lv.slice(), best: j.best };
+    if (!hold) hold = { lv: j.lv.slice(), best: j.best, sva: 0, svaT: 0 };
     else {
       j.lv.forEach((v, i) => { if (v !== null && (hold.lv[i] === null || v > hold.lv[i])) hold.lv[i] = v; });
       hold.best = -1;
       hold.lv.forEach((v, i) => { if (v !== null && (hold.best < 0 || v > hold.lv[hold.best])) hold.best = i; });
     }
+    if (lpOk && prim.sva > hold.sva) { hold.sva = prim.sva; hold.svaT = prim.svaT; }
     if (j.best >= 0) paintHero(j.lv[j.best], TS[j.best], lastRaw);
     else {
       const hero = $("hero"); hero.style.backgroundColor = MMI_COLORS[0]; hero.classList.remove("light-text");
@@ -734,15 +789,20 @@ if (typeof document !== "undefined") {
     $("pgaSub").textContent = `PGA ${fmtGal(prim.pga)} gal`;
     $("jmaVal").textContent = isFinite(prim.jma) ? prim.jma.toFixed(1) : "–";
     $("jmaSub").textContent = isFinite(prim.jma) ? jmaLabel(prim.jma) : "\u00a0";
+    $("lpVal").textContent = !lpOk ? "잡음" : lpc ? `계급 ${lpc}` : "계급 1 미만";
+    $("lpSub").textContent = `Sva ${fmtGal(prim.sva)} cm/s, ${prim.svaT.toFixed(1)}초`;
     renderSel(prim);
 
     // 감지 기록: III 이상이 되면 이벤트 시작, 30초 조용하면 종료
     const cur = j.best >= 0 ? classOf(j.lv[j.best]) : 0;
-    if (!calib && cur >= LOG_FROM) {
+    if (!calib && (cur >= LOG_FROM || lpc >= 1)) {
       quietSince = null;
-      const entry = { t: Date.now(), c: cur, T: TS[j.best], pga: prim.pga, jma: isFinite(prim.jma) ? prim.jma : 0, b: bld.on };
+      const entry = { t: Date.now(), c: cur, T: j.best >= 0 ? TS[j.best] : 0, pga: prim.pga, jma: isFinite(prim.jma) ? prim.jma : 0, b: bld.on, lp: lpc };
       if (!active) { active = entry; log.unshift(entry); }
-      else if (cur > active.c) { Object.assign(active, entry); }
+      else {
+        if (cur > active.c) Object.assign(active, { c: cur, T: entry.T, pga: entry.pga, jma: entry.jma });
+        if (lpc > (active.lp || 0)) active.lp = lpc;
+      }
       store.set("immLog", log.slice(0, 50)); renderLog();
     } else if (active) {
       if (quietSince === null) quietSince = Date.now();
